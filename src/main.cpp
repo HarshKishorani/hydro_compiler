@@ -1,5 +1,5 @@
-#include <fstream>
 #include "generation.hpp"
+#include <fstream>
 
 int main(int argc, char *argv[])
 {
@@ -26,22 +26,23 @@ int main(int argc, char *argv[])
 
     // Creating parse tree
     Parser parser(std::move(tokens));
-    std::optional<NodeExit> tree = parser.parse();
+    std::optional<NodeProg> prog = parser.parse_prog();
 
     // Generating asm code
-    if (!tree.has_value())
+    if (!prog.has_value())
     {
         std::cerr << "No Exit Statement Found." << std::endl;
         return EXIT_FAILURE;
     }
-    Generator codeGenerator(tree.value());
+    Generator codeGenerator(prog.value());
     // Creating asm file
     {
         std::fstream file("out.asm", std::ios::out);
-        file << codeGenerator.generate();
+        file << codeGenerator.generate_program();
     }
 
-    // System call to NASM to assemble assemby code and ld command for linked
+    // System call to NASM to assemble assemby code and ld command for GNU linker
+    // to link libs.
     system("nasm -felf64 out.asm");
     system("ld -o out out.o");
 

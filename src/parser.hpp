@@ -1,14 +1,53 @@
 #pragma once
 #include "tokenization.hpp"
+#include <variant>
 
-struct NodeExpr
+// Expressions ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+/// @brief int_lit Expression
+struct NodeExprIntLit
 {
     Token int_lit;
 };
 
-struct NodeExit
+/// @brief Identifier Expression
+struct NodeExprIdent
+{
+    Token ident;
+};
+
+/// @brief Node Expression of parse tree.
+struct NodeExpr
+{
+    std::variant<NodeExprIntLit, NodeExprIdent> var;
+};
+
+// Statements ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+/// @brief 'exit' Statement
+struct NodeStmtExit
 {
     NodeExpr expr;
+};
+
+/// @brief 'let' Statement
+struct NodeStmtLet
+{
+    Token ident;
+    NodeExpr expr;
+};
+
+/// @brief Node Statement for parse tree.
+struct NodeStmt
+{
+    std::variant<NodeStmtExit, NodeStmtLet> var;
+};
+
+// Program Parse Tree ~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+struct NodeProg
+{
+    std::vector<NodeStmt> stmts;
 };
 
 class Parser
@@ -18,13 +57,17 @@ public:
     {
     }
 
-    /// @brief  Parse the expression provided to the 'exit' literal.
+    /// @brief  Parse the token into Node expression.
     /// @return
-    std::optional<NodeExpr> parseExpr()
+    std::optional<NodeExpr> parse_expr()
     {
-        if (peak().has_value() && peak().value().type == TokenType::int_lit)
+        if (peek().has_value() && peek().value().type == TokenType::int_lit)
         {
-            return NodeExpr{.int_lit = consume()};
+            return NodeExpr{.var = NodeExprIntLit{.int_lit = consume()}};
+        }
+        else if (peek().has_value() && peek().value().type == TokenType::ident)
+        {
+            return NodeExpr{.var = NodeExprIdent{.ident = consume()}};
         }
         else
         {
@@ -32,56 +75,122 @@ public:
         }
     }
 
-    /// @brief Parse the list of tokens provided.
-    /// @return
-    std::optional<NodeExit> parse()
+    /// @brief Parse the token into Node Statement.
+    /// @return 
+    std::optional<NodeStmt> parse_stmt()
     {
-        std::optional<NodeExit> exit_node;
-        while (peak().has_value())
+        // Parse 'exit' statement
+        if (peek().value().type == TokenType::exit && peek(1).has_value() && peek(1).value().type == TokenType::open_paren)
         {
-            if (peak().value().type == TokenType::exit)
+            consume(); // Consume 'exit' token
+            consume(); // Consume '(' token
+            NodeStmtExit stmt_exit;
+
+            // Parse Expression for 'exit' statement.
+            if (auto node_expr = parse_expr())
             {
-                consume(); // Consume exit
-                if (auto exprNode = parseExpr())
-                {
-                    // Return the tree of NodeExpr inside NodeExit.
-                    exit_node = NodeExit{.expr = exprNode.value()};
-                }
-                else
-                {
-                    std::cerr << "Invalid Expression" << std::endl;
-                    exit(EXIT_FAILURE);
-                }
-                if (peak().has_value() && peak().value().type == TokenType::semi)
-                    consume(); // Consume Semi colon
-                else
-                {
-                    std::cerr << "Invalid Expression. Missing semi colon." << std::endl;
-                    exit(EXIT_FAILURE);
-                }
+                stmt_exit = {.expr = node_expr.value()};
+            }
+            else
+            {
+                std::cerr << "Invalid expression" << std::endl;
+                exit(EXIT_FAILURE);
+            }
+
+            // Check ')' and consume.
+            if (peek().has_value() && peek().value().type == TokenType::close_paren)
+            {
+                consume();
+            }
+            else
+            {
+                std::cerr << "Expected `)`" << std::endl;
+                exit(EXIT_FAILURE);
+            }
+
+            // Check ';' and consume.
+            if (peek().has_value() && peek().value().type == TokenType::semi)
+            {
+                consume();
+            }
+            else
+            {
+                std::cerr << "Expected `;`" << std::endl;
+                exit(EXIT_FAILURE);
+            }
+            return NodeStmt{.var = stmt_exit};
+        }
+        // Parse 'let' statement
+        else if (
+            peek().has_value() && peek().value().type == TokenType::let && peek(1).has_value() && peek(1).value().type == TokenType::ident && peek(2).has_value() && peek(2).value().type == TokenType::eq)
+        {
+            consume(); // Consume 'let' token.
+            auto stmt_let = NodeStmtLet{.ident = consume()}; // Store the identifier (variable name) of the 'let' token.
+            consume(); // Consume '=' token.
+
+            // Parse Expression for 'let' statement.
+            if (auto expr = parse_expr())
+            {
+                stmt_let.expr = expr.value();
+            }
+            else
+            {
+                std::cerr << "Invalid expression" << std::endl;
+                exit(EXIT_FAILURE);
+            }
+
+            // Check ';' and consume.
+            if (peek().has_value() && peek().value().type == TokenType::semi)
+            {
+                consume();
+            }
+            else
+            {
+                std::cerr << "Expected `;`" << std::endl;
+                exit(EXIT_FAILURE);
+            }
+            return NodeStmt{.var = stmt_let};
+        }
+        else
+        {
+            return {};
+        }
+    }
+
+    /// @brief Parse the given list of tokens and create a parse tree (Node Program) of Node Statements.
+    /// @return
+    std::optional<NodeProg> parse_prog()
+    {
+        NodeProg prog;
+        while (peek().has_value())
+        {
+            if (auto stmt = parse_stmt())
+            {
+                prog.stmts.push_back(stmt.value());
+            }
+            else
+            {
+                std::cerr << "Invalid statement." << std::endl;
+                exit(EXIT_FAILURE);
             }
         }
-        m_index = 0;
-        return exit_node;
+        return prog;
     }
 
 private:
-    /// @brief  Peak at current m_index in source code.
+    /// @brief  Peek at current m_index in list of tokens.
     /// @param ahead
     /// @return
-    inline std::optional<Token> peak(int ahead = 1) const
+    std::optional<Token> peek(const int offset = 0) const
     {
-        if (m_index + ahead > m_tokens.size())
+        if (m_index + offset >= m_tokens.size())
         {
             return {};
         }
-        else
-        {
-            return m_tokens[m_index];
-        }
+        return m_tokens.at(m_index + offset);
     }
 
-    /// @brief Peak at current m_index in tokens and increment the m_index.
+    /// @brief Peek at current m_index in list of tokens and increment the m_index.
     /// @return
     inline Token consume()
     {

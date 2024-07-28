@@ -8,7 +8,12 @@ enum class TokenType
 {
     exit,
     int_lit,
-    semi
+    semi,
+    open_paren,
+    close_paren,
+    ident,
+    let,
+    eq
 };
 
 struct Token
@@ -31,14 +36,13 @@ public:
     {
         std::vector<Token> tokens;
         std::string buff;
-
-        while (peak().has_value())
+        while (peek().has_value())
         {
-            // Alphabetical characters
-            if (std::isalpha(peak().value()))
+            // is Alpha
+            if (std::isalpha(peek().value()))
             {
                 buff.push_back(consume());
-                while (peak().has_value() && std::isalnum(peak().value()))
+                while (peek().has_value() && std::isalnum(peek().value()))
                 {
                     buff.push_back(consume());
                 }
@@ -48,40 +52,68 @@ public:
                     buff.clear();
                     continue;
                 }
+                else if (buff == "let")
+                {
+                    tokens.push_back({.type = TokenType::let});
+                    buff.clear();
+                    continue;
+                }
                 else
                 {
-                    std::cerr << "You messed \n";
-                    exit(EXIT_FAILURE);
+                    tokens.push_back({.type = TokenType::ident, .value = buff});
+                    buff.clear();
+                    continue;
                 }
             }
-            // Digits
-            else if (std::isdigit(peak().value()))
+            // is digit
+            else if (std::isdigit(peek().value()))
             {
                 buff.push_back(consume());
-                while (peak().has_value() && std::isdigit(peak().value()))
+                while (peek().has_value() && std::isdigit(peek().value()))
                 {
                     buff.push_back(consume());
                 }
-
                 tokens.push_back({.type = TokenType::int_lit, .value = buff});
                 buff.clear();
+                continue;
             }
-            // Semi colons
-            else if (peak().value() == ';')
+            // Parenthesis
+            else if (peek().value() == '(')
+            {
+                consume();
+                tokens.push_back({.type = TokenType::open_paren});
+                continue;
+            }
+            else if (peek().value() == ')')
+            {
+                consume();
+                tokens.push_back({.type = TokenType::close_paren});
+                continue;
+            }
+            // Semi Colon
+            else if (peek().value() == ';')
             {
                 consume();
                 tokens.push_back({.type = TokenType::semi});
                 continue;
             }
-            // Blank Spaces
-            else if (std::isspace(peak().value()))
+            // Equals
+            else if (peek().value() == '=')
+            {
+                consume();
+                tokens.push_back({.type = TokenType::eq});
+                continue;
+            }
+            // Blank Space
+            else if (std::isspace(peek().value()))
             {
                 consume();
                 continue;
             }
+            // Invalid Token
             else
             {
-                std::cerr << "Invalid Token : " << peak().value() << " \n";
+                std::cerr << "You messed up!" << std::endl;
                 exit(EXIT_FAILURE);
             }
         }
@@ -90,20 +122,17 @@ public:
     }
 
 private:
-    /// Peak at current m_index in source code.
-    inline std::optional<char> peak(int ahead = 1) const
+    /// Peek at current m_index in source code.
+    std::optional<char> peek(const size_t offset = 0) const
     {
-        if (m_index + ahead > m_src.length())
+        if (m_index + offset >= m_src.length())
         {
             return {};
         }
-        else
-        {
-            return m_src[m_index];
-        }
+        return m_src.at(m_index + offset);
     }
 
-    /// @brief Peak at current m_index in source code and increment the index.
+    /// @brief Peek at current m_index in source code and increment the index.
     /// @return
     inline char consume() { return m_src[m_index++]; }
 
