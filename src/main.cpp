@@ -1,105 +1,5 @@
-#include <iostream>
 #include <fstream>
-#include <sstream>
-#include <optional>
-#include <vector>
-
-enum class TokenType
-{
-    exit,
-    int_lit,
-    semi
-};
-
-struct Token
-{
-    TokenType type;
-    std::optional<std::string> value;
-};
-
-std::vector<Token> tokenize(const std::string &str)
-{
-    std::vector<Token> tokens;
-    std::string buff;
-    for (int i = 0; i < str.length(); i++)
-    {
-        char c = str[i];
-        if (std::isalpha(c))
-        {
-            buff.push_back(c);
-            i++;
-            while (std::isalnum(str[i]))
-            {
-                buff.push_back(str[i]);
-                i++;
-            }
-            i--;
-
-            if (buff == "return")
-            {
-                tokens.push_back({.type = TokenType::exit});
-                buff.clear();
-                continue;
-            }
-            else
-            {
-                std::cerr << "You messed \n";
-                exit(EXIT_FAILURE);
-            }
-        }
-        else if (std::isdigit(c))
-        {
-            buff.push_back(c);
-            i++;
-            while (std::isdigit(str[i]))
-            {
-                buff.push_back(str[i]);
-                i++;
-            }
-            i--;
-
-            tokens.push_back({.type = TokenType::int_lit, .value = buff});
-            buff.clear();
-        }
-        else if (c == ';')
-        {
-            tokens.push_back({.type = TokenType::semi});
-        }
-        else if (std::isspace(c))
-        {
-            continue;
-        }
-        else
-        {
-            std::cerr << "Invalid Token : " << c << " \n";
-            exit(EXIT_FAILURE);
-        }
-    }
-    return tokens;
-}
-
-std::string tokensToASM(std::vector<Token> &tokens)
-{
-    std::stringstream output;
-    output << "global _start\n_start:\n";
-    for (int i = 0; i < tokens.size(); i++)
-    {
-        const Token &token = tokens[i];
-        if (token.type == TokenType::exit)
-        {
-            if (i + 1 < tokens.size() && tokens[i + 1].type == TokenType::int_lit)
-            {
-                if (i + 2 < tokens.size() && tokens[i + 2].type == TokenType::semi)
-                {
-                    output << "    mov rax, 60\n";
-                    output << "    mov rdi, " << tokens[i + 1].value.value() << "\n";
-                    output << "    syscall\n";
-                }
-            }
-        }
-    }
-    return output.str();
-}
+#include "generation.hpp"
 
 int main(int argc, char *argv[])
 {
@@ -119,12 +19,26 @@ int main(int argc, char *argv[])
         contents_stream << input.rdbuf();
         contents = contents_stream.str();
     }
-    std::vector<Token> tokens = tokenize(contents);
 
+    // Tokenizing the contents
+    Tokenizer tokenizer(std::move(contents));
+    std::vector<Token> tokens = tokenizer.tokenize();
+
+    // Creating parse tree
+    Parser parser(std::move(tokens));
+    std::optional<NodeExit> tree = parser.parse();
+
+    // Generating asm code
+    if (!tree.has_value())
+    {
+        std::cerr << "No Exit Statement Found." << std::endl;
+        return EXIT_FAILURE;
+    }
+    Generator codeGenerator(tree.value());
     // Creating asm file
     {
         std::fstream file("out.asm", std::ios::out);
-        file << tokensToASM(tokens);
+        file << codeGenerator.generate();
     }
 
     // System call to NASM to assemble assemby code and ld command for linked

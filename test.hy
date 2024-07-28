@@ -1,1 +1,1 @@
-return 45;
+exit 100;
