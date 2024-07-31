@@ -4,41 +4,53 @@
 #include <optional>
 #include <vector>
 
+/// @brief Enumeration of token types that the tokenizer can recognize.
 enum class TokenType
 {
-    exit,
-    int_lit,
-    semi,
-    open_paren,
-    close_paren,
-    ident,
-    let,
-    eq
+    exit,        // Represents the 'exit' keyword.
+    int_lit,     // Represents an integer literal.
+    semi,        // Represents a semicolon.
+    open_paren,  // Represents an opening parenthesis.
+    close_paren, // Represents a closing parenthesis.
+    ident,       // Represents an identifier.
+    let,         // Represents the 'let' keyword.
+    eq,          // Represents the equals sign.
+    plus,        // Represents the plus sign.
 };
 
+/// @brief Structure to represent a token.
 struct Token
 {
-    TokenType type;
-    std::optional<std::string> value;
+    TokenType type;                   // The type of the token.
+    std::optional<std::string> value; // The value of the token, if applicable.
 };
 
+/// @brief Class to convert source code into a list of tokens.
 class Tokenizer
 {
 public:
+    /**
+     * @brief Constructs the tokenizer with a given source code string.
+     *
+     * @param src The source code to tokenize.
+     */
     inline explicit Tokenizer(std::string src)
         : m_src(std::move(src))
     {
     }
 
-    /// @brief Convert the given souce code into the list of Tokens.
-    /// @return
+    /**
+     * @brief Tokenizes the source code into a list of tokens.
+     *
+     * @return A vector of tokens parsed from the source code.
+     */
     inline std::vector<Token> tokenize()
     {
         std::vector<Token> tokens;
         std::string buff;
         while (peek().has_value())
         {
-            // is Alpha
+            // Check if the current character is alphabetic
             if (std::isalpha(peek().value()))
             {
                 buff.push_back(consume());
@@ -65,7 +77,7 @@ public:
                     continue;
                 }
             }
-            // is digit
+            // Check if the current character is a digit
             else if (std::isdigit(peek().value()))
             {
                 buff.push_back(consume());
@@ -77,7 +89,7 @@ public:
                 buff.clear();
                 continue;
             }
-            // Parenthesis
+            // Check for specific symbols and operators
             else if (peek().value() == '(')
             {
                 consume();
@@ -90,30 +102,34 @@ public:
                 tokens.push_back({.type = TokenType::close_paren});
                 continue;
             }
-            // Semi Colon
             else if (peek().value() == ';')
             {
                 consume();
                 tokens.push_back({.type = TokenType::semi});
                 continue;
             }
-            // Equals
             else if (peek().value() == '=')
             {
                 consume();
                 tokens.push_back({.type = TokenType::eq});
                 continue;
             }
-            // Blank Space
+            else if (peek().value() == '+')
+            {
+                consume();
+                tokens.push_back({.type = TokenType::plus});
+                continue;
+            }
+            // Skip whitespace characters
             else if (std::isspace(peek().value()))
             {
                 consume();
                 continue;
             }
-            // Invalid Token
+            // Handle invalid tokens
             else
             {
-                std::cerr << "You messed up!" << std::endl;
+                std::cerr << "Invalid token encountered!" << std::endl;
                 exit(EXIT_FAILURE);
             }
         }
@@ -122,7 +138,12 @@ public:
     }
 
 private:
-    /// Peek at current m_index in source code.
+    /**
+     * @brief Peeks at the current position in the source code.
+     *
+     * @param offset The offset from the current position to peek at.
+     * @return The character at the current position plus the offset, if valid; otherwise, an empty optional.
+     */
     std::optional<char> peek(const size_t offset = 0) const
     {
         if (m_index + offset >= m_src.length())
@@ -132,10 +153,13 @@ private:
         return m_src.at(m_index + offset);
     }
 
-    /// @brief Peek at current m_index in source code and increment the index.
-    /// @return
+    /**
+     * @brief Consumes the current character in the source code and increments the index.
+     *
+     * @return The consumed character.
+     */
     inline char consume() { return m_src[m_index++]; }
 
-    const std::string m_src;
-    size_t m_index = 0;
+    const std::string m_src; // The source code to tokenize.
+    size_t m_index = 0;      // The current index in the source code.
 };

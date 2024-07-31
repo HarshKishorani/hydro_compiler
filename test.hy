@@ -1,3 +1,3 @@
-let x = 7;
-let y = 8;
+let x = 8 + 5 + 9;
+let y = 45 + 6;
 exit(x);
