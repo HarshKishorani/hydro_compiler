@@ -20,6 +20,12 @@ struct NodeTermIdent
 
 struct NodeExpr; // Forward declaration of NodeExpr
 
+/// @brief Represents a parenthesis term in the parse tree with an expression inside it.
+struct NodeTermParen
+{
+    NodeExpr *expr; // An expression inside the parenthesis.
+};
+
 /// @brief Represents an addition binary expression in the parse tree.
 struct NodeBinExprAdd
 {
@@ -27,23 +33,37 @@ struct NodeBinExprAdd
     NodeExpr *rhs; // Right-hand side of the addition expression.
 };
 
-// Uncomment for multiplication binary expression
-// struct NodeBinExprMulti
-// {
-//     NodeExpr *lhs;
-//     NodeExpr *rhs;
-// };
+/// @brief Represents a multiplication binary expression in the parse tree.
+struct NodeBinExprMulti
+{
+    NodeExpr *lhs; // Left-hand side of the addition expression.
+    NodeExpr *rhs; // Right-hand side of the addition expression.
+};
+
+/// @brief Represents a Subtraction binary expression in the parse tree.
+struct NodeBinExprSub
+{
+    NodeExpr *lhs; // Left-hand side of the addition expression.
+    NodeExpr *rhs; // Right-hand side of the addition expression.
+};
+
+/// @brief Represents a Disivion binary expression in the parse tree.
+struct NodeBinExprDiv
+{
+    NodeExpr *lhs; // Left-hand side of the addition expression.
+    NodeExpr *rhs; // Right-hand side of the addition expression.
+};
 
 /// @brief Represents a binary expression in the parse tree.
 struct NodeBinExpr
 {
-    NodeBinExprAdd *add; // The addition binary expression.
+    std::variant<NodeBinExprAdd *, NodeBinExprMulti *, NodeBinExprSub *, NodeBinExprDiv *> var; // Variant holding the Binary Expression type.
 };
 
 /// @brief Represents a term in the parse tree.
 struct NodeTerm
 {
-    std::variant<NodeTermIntLit *, NodeTermIdent *> var; // Variant holding the term type.
+    std::variant<NodeTermIntLit *, NodeTermIdent *, NodeTermParen *> var; // Variant holding the term type.
 };
 
 /// @brief Represents an expression in the parse tree.
@@ -121,53 +141,120 @@ public:
 
             return term;
         }
+        else if (auto open_paren = try_consume(TokenType::open_paren))
+        {
+            auto expr = parse_expr();
+            if (!expr.has_value())
+            {
+                std::cerr << "Expected Expression inside parenthesis.";
+                exit(EXIT_FAILURE);
+            }
+
+            try_consume(TokenType::close_paren, "Invalid Token. Expected ')'");
+
+            auto term_paren = m_allocator.alloc<NodeTermParen>();
+            term_paren->expr = expr.value();
+
+            auto term = m_allocator.alloc<NodeTerm>();
+            term->var = term_paren;
+
+            return term;
+        }
         return {};
     }
 
     /**
      * @brief Parses an expression from the tokens.
-     *
+     * @param min_prec Minimum precedence to check for operator precedence climbing for Binary Expressions.
      * @return An optional NodeExpr pointer if an expression is parsed successfully.
      */
-    std::optional<NodeExpr *> parse_expr()
+    std::optional<NodeExpr *> parse_expr(int min_prec = 0)
     {
-        if (auto term = parse_term())
-        {
-            if (try_consume(TokenType::plus).has_value())
-            {
-                auto bin_expr = m_allocator.alloc<NodeBinExpr>();
-                auto bin_expr_add = m_allocator.alloc<NodeBinExprAdd>();
-                auto lhs_expr = m_allocator.alloc<NodeExpr>();
-
-                lhs_expr->var = term.value();
-                bin_expr_add->lhs = lhs_expr;
-                if (auto rhs = parse_expr())
-                {
-                    bin_expr_add->rhs = rhs.value();
-
-                    bin_expr->add = bin_expr_add;
-
-                    auto expr = m_allocator.alloc<NodeExpr>();
-                    expr->var = bin_expr;
-                    return expr;
-                }
-                else
-                {
-                    std::cerr << "Expected expression rhs." << std::endl;
-                    exit(EXIT_FAILURE);
-                }
-            }
-            else
-            {
-                auto expr = m_allocator.alloc<NodeExpr>();
-                expr->var = term.value();
-                return expr;
-            }
-        }
-        else
+        std::optional<NodeTerm *> term = parse_term();
+        if (!term.has_value())
         {
             return {};
         }
+        NodeExpr *expr = m_allocator.alloc<NodeExpr>();
+        expr->var = term.value();
+
+        // Operator Precedence Climbing for Binary operations.
+        //+ https://eli.thegreenplace.net/2012/08/02/parsing-expressions-by-precedence-climbing
+        while (true)
+        {
+            std::optional<Token> curr_tok = peek();
+            std::optional<int> prec;
+
+            // Break if not a Binary Expression.
+            if (!curr_tok.has_value())
+                break;
+            prec = checkAndGetBinaryPrecedence(curr_tok.value().type);
+            if (!prec.has_value() || prec < min_prec)
+            {
+                break;
+            }
+
+            // Get the operator's precedence and associativity, and compute a
+            // minimal precedence for the recursive call
+            Token op = consume();
+            int next_min_prec = prec.value() + 1;
+
+            std::optional<NodeExpr *> rhs_expr = parse_expr(next_min_prec); // Recursive call
+            if (!rhs_expr.has_value())
+            {
+                std::cerr << "Unable to parse expression." << std::endl;
+                exit(EXIT_FAILURE);
+            }
+            auto lhs_expr = m_allocator.alloc<NodeExpr>();
+            auto bin_expr = m_allocator.alloc<NodeBinExpr>();
+
+            if (op.type == TokenType::plus)
+            {
+                auto add = m_allocator.alloc<NodeBinExprAdd>();
+
+                lhs_expr->var = expr->var;
+
+                add->lhs = lhs_expr;
+                add->rhs = rhs_expr.value();
+
+                bin_expr->var = add;
+            }
+            else if (op.type == TokenType::star)
+            {
+                auto mult = m_allocator.alloc<NodeBinExprMulti>();
+
+                lhs_expr->var = expr->var;
+
+                mult->lhs = lhs_expr;
+                mult->rhs = rhs_expr.value();
+
+                bin_expr->var = mult;
+            }
+            else if (op.type == TokenType::sub)
+            {
+                auto sub = m_allocator.alloc<NodeBinExprSub>();
+
+                lhs_expr->var = expr->var;
+
+                sub->lhs = lhs_expr;
+                sub->rhs = rhs_expr.value();
+
+                bin_expr->var = sub;
+            }
+            else if (op.type == TokenType::div)
+            {
+                auto div = m_allocator.alloc<NodeBinExprDiv>();
+
+                lhs_expr->var = expr->var;
+
+                div->lhs = lhs_expr;
+                div->rhs = rhs_expr.value();
+
+                bin_expr->var = div;
+            }
+            expr->var = bin_expr;
+        }
+        return expr;
     }
 
     /**

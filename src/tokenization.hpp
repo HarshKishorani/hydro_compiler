@@ -16,7 +16,29 @@ enum class TokenType
     let,         // Represents the 'let' keyword.
     eq,          // Represents the equals sign.
     plus,        // Represents the plus sign.
+    star,        // Represents the star sign.
+    sub,         // Represents the subtraction sign.
+    div          // Represents the division sign.
 };
+
+/// @brief Checks weather the given TokenType is a Binary Operator or not.
+/// @param type The expected token type.
+/// @return Precedence of the token.
+std::optional<int> checkAndGetBinaryPrecedence(TokenType type)
+{
+    switch (type)
+    {
+    case TokenType::plus:
+    case TokenType::sub:
+        return 0;
+    case TokenType::star:
+    case TokenType::div:
+        return 1;
+
+    default:
+        return {};
+    }
+}
 
 /// @brief Structure to represent a token.
 struct Token
@@ -62,19 +84,16 @@ public:
                 {
                     tokens.push_back({.type = TokenType::exit});
                     buff.clear();
-                    continue;
                 }
                 else if (buff == "let")
                 {
                     tokens.push_back({.type = TokenType::let});
                     buff.clear();
-                    continue;
                 }
                 else
                 {
                     tokens.push_back({.type = TokenType::ident, .value = buff});
                     buff.clear();
-                    continue;
                 }
             }
             // Check if the current character is a digit
@@ -87,44 +106,52 @@ public:
                 }
                 tokens.push_back({.type = TokenType::int_lit, .value = buff});
                 buff.clear();
-                continue;
             }
             // Check for specific symbols and operators
             else if (peek().value() == '(')
             {
                 consume();
                 tokens.push_back({.type = TokenType::open_paren});
-                continue;
             }
             else if (peek().value() == ')')
             {
                 consume();
                 tokens.push_back({.type = TokenType::close_paren});
-                continue;
             }
             else if (peek().value() == ';')
             {
                 consume();
                 tokens.push_back({.type = TokenType::semi});
-                continue;
             }
             else if (peek().value() == '=')
             {
                 consume();
                 tokens.push_back({.type = TokenType::eq});
-                continue;
             }
             else if (peek().value() == '+')
             {
                 consume();
                 tokens.push_back({.type = TokenType::plus});
-                continue;
+            }
+            else if (peek().value() == '*')
+            {
+                consume();
+                tokens.push_back({.type = TokenType::star});
+            }
+            else if (peek().value() == '-')
+            {
+                consume();
+                tokens.push_back({.type = TokenType::sub});
+            }
+            else if (peek().value() == '/')
+            {
+                consume();
+                tokens.push_back({.type = TokenType::div});
             }
             // Skip whitespace characters
             else if (std::isspace(peek().value()))
             {
                 consume();
-                continue;
             }
             // Handle invalid tokens
             else

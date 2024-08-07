@@ -47,10 +47,88 @@ public:
                 offset << "QWORD [rsp + " << (gen->m_stack_size - var.stack_loc - 1) * 8 << "]\n";
                 gen->push(offset.str());
             }
+
+            void operator()(const NodeTermParen *term_paren) const
+            {
+                gen->generate_expression(term_paren->expr);
+            }
         };
 
         TermVisitor visitor{.gen = this};
         std::visit(visitor, term->var);
+    }
+
+    /// @brief Generates assembly code for an binary expression node.
+    /// @param bin_expr The binary expression node to generate code for.
+    void generate_binary_expression(const NodeBinExpr *bin_expr)
+    {
+        struct BinExprVisitor
+        {
+            Generator *gen;
+
+            void operator()(const NodeBinExprAdd *bin_expr_add) const
+            {
+                // Pushing both lhs and rhs on the stack.
+                gen->generate_expression(bin_expr_add->rhs);
+                gen->generate_expression(bin_expr_add->lhs);
+
+                gen->pop("rax");
+                gen->pop("rbx");
+
+                gen->m_output << "    add rax, rbx\n";
+
+                // Putting result back on stack.
+                gen->push("rax");
+            }
+
+            void operator()(const NodeBinExprMulti *bin_expr_mult) const
+            {
+                // Pushing both lhs and rhs on the stack.
+                gen->generate_expression(bin_expr_mult->rhs);
+                gen->generate_expression(bin_expr_mult->lhs);
+
+                gen->pop("rax");
+                gen->pop("rbx");
+
+                gen->m_output << "    mul rbx\n";
+
+                // Putting result back on stack.
+                gen->push("rax");
+            }
+
+            void operator()(const NodeBinExprSub *bin_expr_sub) const
+            {
+                // Pushing both rhs and lhs on the stack.
+                gen->generate_expression(bin_expr_sub->rhs);
+                gen->generate_expression(bin_expr_sub->lhs);
+
+                gen->pop("rax");
+                gen->pop("rbx");
+
+                gen->m_output << "    sub rax, rbx\n";
+
+                // Putting result back on stack.
+                gen->push("rax");
+            }
+
+            void operator()(const NodeBinExprDiv *bin_expr_div) const
+            {
+                // Pushing both lhs and rhs on the stack.
+                gen->generate_expression(bin_expr_div->rhs);
+                gen->generate_expression(bin_expr_div->lhs);
+
+                gen->pop("rax");
+                gen->pop("rbx");
+
+                gen->m_output << "    div rbx\n";
+
+                // Putting result back on stack.
+                gen->push("rax");
+            }
+        };
+
+        BinExprVisitor visitor{.gen = this};
+        std::visit(visitor, bin_expr->var);
     }
 
     /**
@@ -71,17 +149,7 @@ public:
 
             void operator()(const NodeBinExpr *bin_expr) const
             {
-                // Pushing both lhs and rhs on the stack.
-                gen->generate_expression(bin_expr->add->lhs);
-                gen->generate_expression(bin_expr->add->rhs);
-
-                gen->pop("rax");
-                gen->pop("rbx");
-
-                gen->m_output << "    add rax, rbx\n";
-
-                // Putting result back on stack.
-                gen->push("rax");
+                gen->generate_binary_expression(bin_expr);
             }
         };
 

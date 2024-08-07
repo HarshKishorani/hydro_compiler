@@ -1,3 +1,2 @@
-let x = 8 + 5 + 9;
-let y = 45 + 6;
-exit(x);
+let y = (10 - 2 * 3) / 2;
+exit(y);
