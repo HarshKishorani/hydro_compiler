@@ -9,6 +9,7 @@ enum class TokenType
 {
     exit,        // Represents the 'exit' keyword.
     int_lit,     // Represents an integer literal.
+    if_,         // Represents the 'if' keyword.
     semi,        // Represents a semicolon.
     open_paren,  // Represents an opening parenthesis.
     close_paren, // Represents a closing parenthesis.
@@ -17,8 +18,10 @@ enum class TokenType
     eq,          // Represents the equals sign.
     plus,        // Represents the plus sign.
     star,        // Represents the star sign.
-    sub,         // Represents the subtraction sign.
-    div          // Represents the division sign.
+    minus,       // Represents the subtraction sign.
+    fslash,      // Represents the forward slash sign.
+    open_curly,  // Represents open curly braces.
+    close_curly  // Represents closed curly braces.
 };
 
 /// @brief Checks weather the given TokenType is a Binary Operator or not.
@@ -29,10 +32,10 @@ std::optional<int> checkAndGetBinaryPrecedence(TokenType type)
     switch (type)
     {
     case TokenType::plus:
-    case TokenType::sub:
+    case TokenType::minus:
         return 0;
     case TokenType::star:
-    case TokenType::div:
+    case TokenType::fslash:
         return 1;
 
     default:
@@ -90,6 +93,11 @@ public:
                     tokens.push_back({.type = TokenType::let});
                     buff.clear();
                 }
+                else if (buff == "if")
+                {
+                    tokens.push_back({.type = TokenType::if_});
+                    buff.clear();
+                }
                 else
                 {
                     tokens.push_back({.type = TokenType::ident, .value = buff});
@@ -141,12 +149,22 @@ public:
             else if (peek().value() == '-')
             {
                 consume();
-                tokens.push_back({.type = TokenType::sub});
+                tokens.push_back({.type = TokenType::minus});
             }
             else if (peek().value() == '/')
             {
                 consume();
-                tokens.push_back({.type = TokenType::div});
+                tokens.push_back({.type = TokenType::fslash});
+            }
+            else if (peek().value() == '{')
+            {
+                consume();
+                tokens.push_back({.type = TokenType::open_curly});
+            }
+            else if (peek().value() == '}')
+            {
+                consume();
+                tokens.push_back({.type = TokenType::close_curly});
             }
             // Skip whitespace characters
             else if (std::isspace(peek().value()))

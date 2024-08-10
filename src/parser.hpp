@@ -87,10 +87,25 @@ struct NodeStmtLet
     NodeExpr *expr; // The expression associated with the 'let' statement.
 };
 
+struct NodeStmt; // Forward declaration of NodeStmt
+
+/// @brief Represents a 'scope" in the parse tree. Scope contains list of statements inside.
+struct NodeScope
+{
+    std::vector<NodeStmt *> stmts;
+};
+
+/// @brief Represents an 'if' statement in the parse tree.
+struct NodeStmtIf
+{
+    NodeExpr *expr;
+    NodeScope *scope;
+};
+
 /// @brief Represents a statement in the parse tree.
 struct NodeStmt
 {
-    std::variant<NodeStmtExit *, NodeStmtLet *> var; // Variant holding the statement type.
+    std::variant<NodeStmtExit *, NodeStmtLet *, NodeScope *, NodeStmtIf *> var; // Variant holding the statement type.
 };
 
 // Program Parse Tree ~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -230,31 +245,50 @@ public:
 
                 bin_expr->var = mult;
             }
-            else if (op.type == TokenType::sub)
+            else if (op.type == TokenType::minus)
             {
-                auto sub = m_allocator.alloc<NodeBinExprSub>();
+                auto minus = m_allocator.alloc<NodeBinExprSub>();
 
                 lhs_expr->var = expr->var;
 
-                sub->lhs = lhs_expr;
-                sub->rhs = rhs_expr.value();
+                minus->lhs = lhs_expr;
+                minus->rhs = rhs_expr.value();
 
-                bin_expr->var = sub;
+                bin_expr->var = minus;
             }
-            else if (op.type == TokenType::div)
+            else if (op.type == TokenType::fslash)
             {
-                auto div = m_allocator.alloc<NodeBinExprDiv>();
+                auto fslash = m_allocator.alloc<NodeBinExprDiv>();
 
                 lhs_expr->var = expr->var;
 
-                div->lhs = lhs_expr;
-                div->rhs = rhs_expr.value();
+                fslash->lhs = lhs_expr;
+                fslash->rhs = rhs_expr.value();
 
-                bin_expr->var = div;
+                bin_expr->var = fslash;
             }
             expr->var = bin_expr;
         }
         return expr;
+    }
+
+    /// @brief Parses a 'scope'.
+    /// @return
+    std::optional<NodeScope *> parse_scope()
+    {
+        if (try_consume(TokenType::open_curly).has_value())
+        {
+            auto scope = m_allocator.alloc<NodeScope>();
+            while (auto stmt = parse_stmt())
+            {
+                scope->stmts.push_back(stmt.value());
+            }
+
+            try_consume(TokenType::close_curly, "Expected a closed curly parenthesis. '}'");
+
+            return scope;
+        }
+        return {};
     }
 
     /**
@@ -319,6 +353,54 @@ public:
             auto node_stmt = m_allocator.alloc<NodeStmt>();
             node_stmt->var = stmt_let;
             return node_stmt;
+        }
+        // Parse Scopes.
+        else if (peek().has_value() && peek().value().type == TokenType::open_curly)
+        {
+            if (auto scope = parse_scope())
+            {
+                auto node_stmt = m_allocator.alloc<NodeStmt>();
+                node_stmt->var = scope.value();
+                return node_stmt;
+            }
+            else
+            {
+                std::cerr << "Expected a scope. \n";
+                exit(EXIT_FAILURE);
+            }
+        }
+        // Parse 'if' statement
+        else if (auto if_ = try_consume(TokenType::if_))
+        {
+            try_consume(TokenType::open_paren, "Expected a '('");
+            auto stmt_if = m_allocator.alloc<NodeStmtIf>();
+
+            // Parse expression for 'if' statement
+            if (auto node_expr = parse_expr())
+            {
+                stmt_if->expr = node_expr.value();
+            }
+            else
+            {
+                std::cerr << "Invalid expression" << std::endl;
+                exit(EXIT_FAILURE);
+            }
+
+            try_consume(TokenType::close_paren, "Expected `)`");
+
+            if (auto scope = parse_scope())
+            {
+                stmt_if->scope = scope.value();
+
+                auto node_stmt = m_allocator.alloc<NodeStmt>();
+                node_stmt->var = stmt_if;
+                return node_stmt;
+            }
+            else
+            {
+                std::cerr << "Expected a scope. \n";
+                exit(EXIT_FAILURE);
+            }
         }
         else
         {

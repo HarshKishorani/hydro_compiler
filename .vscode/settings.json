@@ -47,7 +47,8 @@
         "streambuf": "cpp",
         "typeinfo": "cpp",
         "optional": "cpp",
-        "variant": "cpp"
+        "variant": "cpp",
+        "map": "cpp"
     },
     "cmake.debugConfig": {
         "args": [

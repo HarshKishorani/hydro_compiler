@@ -1,2 +1,5 @@
-let y = (10 - 2 * 3) / 2;
-exit(y);
+let x = 90;
+if(x){
+    exit(69);
+}
+exit(1);
