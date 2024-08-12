@@ -3,6 +3,7 @@
 #include "arena.hpp"
 #include <variant>
 #include <vector>
+#include <cassert>
 
 // Expressions ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -36,22 +37,22 @@ struct NodeBinExprAdd
 /// @brief Represents a multiplication binary expression in the parse tree.
 struct NodeBinExprMulti
 {
-    NodeExpr *lhs; // Left-hand side of the addition expression.
-    NodeExpr *rhs; // Right-hand side of the addition expression.
+    NodeExpr *lhs; // Left-hand side of the multiplication expression.
+    NodeExpr *rhs; // Right-hand side of the multiplication expression.
 };
 
-/// @brief Represents a Subtraction binary expression in the parse tree.
+/// @brief Represents a subtraction binary expression in the parse tree.
 struct NodeBinExprSub
 {
-    NodeExpr *lhs; // Left-hand side of the addition expression.
-    NodeExpr *rhs; // Right-hand side of the addition expression.
+    NodeExpr *lhs; // Left-hand side of the subtraction expression.
+    NodeExpr *rhs; // Right-hand side of the subtraction expression.
 };
 
-/// @brief Represents a Disivion binary expression in the parse tree.
+/// @brief Represents a division binary expression in the parse tree.
 struct NodeBinExprDiv
 {
-    NodeExpr *lhs; // Left-hand side of the addition expression.
-    NodeExpr *rhs; // Right-hand side of the addition expression.
+    NodeExpr *lhs; // Left-hand side of the division expression.
+    NodeExpr *rhs; // Right-hand side of the division expression.
 };
 
 /// @brief Represents a binary expression in the parse tree.
@@ -89,17 +90,17 @@ struct NodeStmtLet
 
 struct NodeStmt; // Forward declaration of NodeStmt
 
-/// @brief Represents a 'scope" in the parse tree. Scope contains list of statements inside.
+/// @brief Represents a 'scope' in the parse tree. Scope contains a list of statements inside.
 struct NodeScope
 {
-    std::vector<NodeStmt *> stmts;
+    std::vector<NodeStmt *> stmts; // List of statements in the scope.
 };
 
 /// @brief Represents an 'if' statement in the parse tree.
 struct NodeStmtIf
 {
-    NodeExpr *expr;
-    NodeScope *scope;
+    NodeExpr *expr;   // Condition expression of the 'if' statement.
+    NodeScope *scope; // Scope of statements executed if the condition is true.
 };
 
 /// @brief Represents a statement in the parse tree.
@@ -125,7 +126,8 @@ public:
      *
      * @param tokens The list of tokens to parse.
      */
-    inline explicit Parser(std::vector<Token> tokens) : m_tokens(std::move(tokens)), m_allocator(1024 * 1024 * 4) // 4MB
+    inline explicit Parser(std::vector<Token> tokens)
+        : m_tokens(std::move(tokens)), m_allocator(1024 * 1024 * 4) // 4 mb
     {
     }
 
@@ -138,22 +140,14 @@ public:
     {
         if (auto int_lit = try_consume(TokenType::int_lit))
         {
-            auto term_int_lit = m_allocator.alloc<NodeTermIntLit>();
-            term_int_lit->int_lit = int_lit.value();
-
-            auto term = m_allocator.alloc<NodeTerm>();
-            term->var = term_int_lit;
-
+            auto term_int_lit = m_allocator.emplace<NodeTermIntLit>(int_lit.value());
+            auto term = m_allocator.emplace<NodeTerm>(term_int_lit);
             return term;
         }
         else if (auto ident = try_consume(TokenType::ident))
         {
-            auto term_ident = m_allocator.alloc<NodeTermIdent>();
-            term_ident->ident = ident.value();
-
-            auto term = m_allocator.alloc<NodeTerm>();
-            term->var = term_ident;
-
+            auto expr_ident = m_allocator.emplace<NodeTermIdent>(ident.value());
+            auto term = m_allocator.emplace<NodeTerm>(expr_ident);
             return term;
         }
         else if (auto open_paren = try_consume(TokenType::open_paren))
@@ -161,21 +155,18 @@ public:
             auto expr = parse_expr();
             if (!expr.has_value())
             {
-                std::cerr << "Expected Expression inside parenthesis.";
+                std::cerr << "Expected expression" << std::endl;
                 exit(EXIT_FAILURE);
             }
-
-            try_consume(TokenType::close_paren, "Invalid Token. Expected ')'");
-
-            auto term_paren = m_allocator.alloc<NodeTermParen>();
-            term_paren->expr = expr.value();
-
-            auto term = m_allocator.alloc<NodeTerm>();
-            term->var = term_paren;
-
+            try_consume(TokenType::close_paren, "Expected `)`");
+            auto term_paren = m_allocator.emplace<NodeTermParen>(expr.value());
+            auto term = m_allocator.emplace<NodeTerm>(term_paren);
             return term;
         }
-        return {};
+        else
+        {
+            return {};
+        }
     }
 
     /**
@@ -190,8 +181,7 @@ public:
         {
             return {};
         }
-        NodeExpr *expr = m_allocator.alloc<NodeExpr>();
-        expr->var = term.value();
+        auto expr = m_allocator.emplace<NodeExpr>(term.value());
 
         // Operator Precedence Climbing for Binary operations.
         //+ https://eli.thegreenplace.net/2012/08/02/parsing-expressions-by-precedence-climbing
@@ -213,82 +203,64 @@ public:
             // minimal precedence for the recursive call
             Token op = consume();
             int next_min_prec = prec.value() + 1;
-
-            std::optional<NodeExpr *> rhs_expr = parse_expr(next_min_prec); // Recursive call
-            if (!rhs_expr.has_value())
+            auto expr_rhs = parse_expr(next_min_prec);
+            if (!expr_rhs.has_value())
             {
-                std::cerr << "Unable to parse expression." << std::endl;
+                std::cerr << "Unable to parse expression" << std::endl;
                 exit(EXIT_FAILURE);
             }
-            auto lhs_expr = m_allocator.alloc<NodeExpr>();
-            auto bin_expr = m_allocator.alloc<NodeBinExpr>();
-
+            auto bin_expr = m_allocator.emplace<NodeBinExpr>();
+            auto expr_lhs = m_allocator.emplace<NodeExpr>();
             if (op.type == TokenType::plus)
             {
-                auto add = m_allocator.alloc<NodeBinExprAdd>();
-
-                lhs_expr->var = expr->var;
-
-                add->lhs = lhs_expr;
-                add->rhs = rhs_expr.value();
-
+                expr_lhs->var = expr->var;
+                auto add = m_allocator.emplace<NodeBinExprAdd>(expr_lhs, expr_rhs.value());
                 bin_expr->var = add;
             }
             else if (op.type == TokenType::star)
             {
-                auto mult = m_allocator.alloc<NodeBinExprMulti>();
-
-                lhs_expr->var = expr->var;
-
-                mult->lhs = lhs_expr;
-                mult->rhs = rhs_expr.value();
-
-                bin_expr->var = mult;
+                expr_lhs->var = expr->var;
+                auto multi = m_allocator.emplace<NodeBinExprMulti>(expr_lhs, expr_rhs.value());
+                bin_expr->var = multi;
             }
             else if (op.type == TokenType::minus)
             {
-                auto minus = m_allocator.alloc<NodeBinExprSub>();
-
-                lhs_expr->var = expr->var;
-
-                minus->lhs = lhs_expr;
-                minus->rhs = rhs_expr.value();
-
-                bin_expr->var = minus;
+                expr_lhs->var = expr->var;
+                auto sub = m_allocator.emplace<NodeBinExprSub>(expr_lhs, expr_rhs.value());
+                bin_expr->var = sub;
             }
             else if (op.type == TokenType::fslash)
             {
-                auto fslash = m_allocator.alloc<NodeBinExprDiv>();
-
-                lhs_expr->var = expr->var;
-
-                fslash->lhs = lhs_expr;
-                fslash->rhs = rhs_expr.value();
-
-                bin_expr->var = fslash;
+                expr_lhs->var = expr->var;
+                auto div = m_allocator.emplace<NodeBinExprDiv>(expr_lhs, expr_rhs.value());
+                bin_expr->var = div;
+            }
+            else
+            {
+                assert(false); // Unreachable;
             }
             expr->var = bin_expr;
         }
         return expr;
     }
 
-    /// @brief Parses a 'scope'.
-    /// @return
+    /**
+     * @brief Parses a 'scope'.
+     * @return An optional NodeScope pointer if a scope is parsed successfully.
+     */
     std::optional<NodeScope *> parse_scope()
     {
-        if (try_consume(TokenType::open_curly).has_value())
+        if (!try_consume(TokenType::open_curly).has_value())
         {
-            auto scope = m_allocator.alloc<NodeScope>();
-            while (auto stmt = parse_stmt())
-            {
-                scope->stmts.push_back(stmt.value());
-            }
-
-            try_consume(TokenType::close_curly, "Expected a closed curly parenthesis. '}'");
-
-            return scope;
+            return {};
         }
-        return {};
+        auto scope = m_allocator.emplace<NodeScope>();
+        while (auto stmt = parse_stmt())
+        {
+            scope->stmts.push_back(stmt.value());
+        }
+        try_consume(TokenType::close_curly, "Expected `}`");
+        return scope;
     }
 
     /**
@@ -301,11 +273,11 @@ public:
         // Parse 'exit' statement
         if (peek().value().type == TokenType::exit && peek(1).has_value() && peek(1).value().type == TokenType::open_paren)
         {
-            consume(); // Consume 'exit' token
-            consume(); // Consume '(' token
-            auto stmt_exit = m_allocator.alloc<NodeStmtExit>();
+            consume();
+            consume();
 
-            // Parse expression for 'exit' statement
+            auto stmt_exit = m_allocator.emplace<NodeStmtExit>();
+
             if (auto node_expr = parse_expr())
             {
                 stmt_exit->expr = node_expr.value();
@@ -316,27 +288,22 @@ public:
                 exit(EXIT_FAILURE);
             }
 
-            // Check ')' and consume
             try_consume(TokenType::close_paren, "Expected `)`");
-
-            // Check ';' and consume
             try_consume(TokenType::semi, "Expected `;`");
 
-            auto node_stmt = m_allocator.alloc<NodeStmt>();
-            node_stmt->var = stmt_exit;
-            return node_stmt;
+            auto stmt = m_allocator.emplace<NodeStmt>();
+            stmt->var = stmt_exit;
+            return stmt;
         }
         // Parse 'let' statement
         else if (peek().has_value() && peek().value().type == TokenType::let &&
                  peek(1).has_value() && peek(1).value().type == TokenType::ident &&
                  peek(2).has_value() && peek(2).value().type == TokenType::eq)
         {
-            consume(); // Consume 'let' token
-            auto stmt_let = m_allocator.alloc<NodeStmtLet>();
-            stmt_let->ident = consume(); // Store the identifier (variable name) of the 'let' token
-            consume();                   // Consume '=' token
-
-            // Parse expression for 'let' statement
+            consume();
+            auto stmt_let = m_allocator.emplace<NodeStmtLet>();
+            stmt_let->ident = consume();
+            consume();
             if (auto expr = parse_expr())
             {
                 stmt_let->expr = expr.value();
@@ -346,61 +313,51 @@ public:
                 std::cerr << "Invalid expression" << std::endl;
                 exit(EXIT_FAILURE);
             }
-
-            // Check ';' and consume
             try_consume(TokenType::semi, "Expected `;`");
-
-            auto node_stmt = m_allocator.alloc<NodeStmt>();
-            node_stmt->var = stmt_let;
-            return node_stmt;
+            auto stmt = m_allocator.emplace<NodeStmt>();
+            stmt->var = stmt_let;
+            return stmt;
         }
         // Parse Scopes.
         else if (peek().has_value() && peek().value().type == TokenType::open_curly)
         {
             if (auto scope = parse_scope())
             {
-                auto node_stmt = m_allocator.alloc<NodeStmt>();
-                node_stmt->var = scope.value();
-                return node_stmt;
+                auto stmt = m_allocator.emplace<NodeStmt>(scope.value());
+                return stmt;
             }
             else
             {
-                std::cerr << "Expected a scope. \n";
+                std::cerr << "Invalid scope" << std::endl;
                 exit(EXIT_FAILURE);
             }
         }
         // Parse 'if' statement
         else if (auto if_ = try_consume(TokenType::if_))
         {
-            try_consume(TokenType::open_paren, "Expected a '('");
-            auto stmt_if = m_allocator.alloc<NodeStmtIf>();
-
-            // Parse expression for 'if' statement
-            if (auto node_expr = parse_expr())
+            try_consume(TokenType::open_paren, "Expected `(`");
+            auto stmt_if = m_allocator.emplace<NodeStmtIf>();
+            if (auto expr = parse_expr())
             {
-                stmt_if->expr = node_expr.value();
+                stmt_if->expr = expr.value();
             }
             else
             {
                 std::cerr << "Invalid expression" << std::endl;
                 exit(EXIT_FAILURE);
             }
-
             try_consume(TokenType::close_paren, "Expected `)`");
-
             if (auto scope = parse_scope())
             {
                 stmt_if->scope = scope.value();
-
-                auto node_stmt = m_allocator.alloc<NodeStmt>();
-                node_stmt->var = stmt_if;
-                return node_stmt;
             }
             else
             {
-                std::cerr << "Expected a scope. \n";
+                std::cerr << "Invalid scope" << std::endl;
                 exit(EXIT_FAILURE);
             }
+            auto stmt = m_allocator.emplace<NodeStmt>(stmt_if);
+            return stmt;
         }
         else
         {
@@ -424,7 +381,7 @@ public:
             }
             else
             {
-                std::cerr << "Invalid statement." << std::endl;
+                std::cerr << "Invalid statement" << std::endl;
                 exit(EXIT_FAILURE);
             }
         }
@@ -438,13 +395,16 @@ private:
      * @param offset The offset from the current position to peek at.
      * @return The token at the current position plus the offset, if valid; otherwise, an empty optional.
      */
-    std::optional<Token> peek(const int offset = 0) const
+    inline std::optional<Token> peek(size_t offset = 0) const
     {
         if (m_index + offset >= m_tokens.size())
         {
             return {};
         }
-        return m_tokens.at(m_index + offset);
+        else
+        {
+            return m_tokens.at(m_index + offset);
+        }
     }
 
     /**
@@ -454,7 +414,7 @@ private:
      */
     inline Token consume()
     {
-        return m_tokens[m_index++];
+        return m_tokens.at(m_index++);
     }
 
     /**

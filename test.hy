@@ -1,5 +1,2 @@
-let x = 90;
-if(x){
-    exit(69);
-}
-exit(1);
+let x = (1 + 2)/3;
+exit(x);
