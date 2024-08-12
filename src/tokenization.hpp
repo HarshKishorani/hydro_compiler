@@ -115,6 +115,33 @@ public:
                 tokens.push_back({.type = TokenType::int_lit, .value = buff});
                 buff.clear();
             }
+            // Check comments
+            else if (peek().value() == '/' && peek(1).has_value() && peek(1).value() == '/')
+            {
+                consume();
+                consume();
+                while (peek().has_value() && peek().value() != '\n')
+                {
+                    consume();
+                }
+            }
+            else if (peek().value() == '/' && peek(1).has_value() && peek(1).value() == '*')
+            {
+                consume();
+                consume();
+                while (peek().has_value())
+                {
+                    if (peek().value() == '*' && peek(1).has_value() && peek(1).value() == '/')
+                    {
+                        break;
+                    }
+                    consume();
+                }
+                if (peek().has_value())
+                    consume();
+                if (peek().has_value())
+                    consume();
+            }
             // Check for specific symbols and operators
             else if (peek().value() == '(')
             {
