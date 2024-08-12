@@ -27,7 +27,7 @@ enum class TokenType
 /// @brief Checks weather the given TokenType is a Binary Operator or not.
 /// @param type The expected token type.
 /// @return Precedence of the token.
-std::optional<int> checkAndGetBinaryPrecedence(TokenType type)
+std::optional<int> checkAndGetBinaryPrecedence(const TokenType type)
 {
     switch (type)
     {
@@ -59,7 +59,7 @@ public:
      *
      * @param src The source code to tokenize.
      */
-    inline explicit Tokenizer(std::string src)
+    explicit Tokenizer(std::string src)
         : m_src(std::move(src))
     {
     }
@@ -69,7 +69,7 @@ public:
      *
      * @return A vector of tokens parsed from the source code.
      */
-    inline std::vector<Token> tokenize()
+    std::vector<Token> tokenize()
     {
         std::vector<Token> tokens;
         std::string buff;
@@ -203,7 +203,7 @@ private:
      *
      * @return The consumed character.
      */
-    inline char consume() { return m_src[m_index++]; }
+    char consume() { return m_src[m_index++]; }
 
     const std::string m_src; // The source code to tokenize.
     size_t m_index = 0;      // The current index in the source code.

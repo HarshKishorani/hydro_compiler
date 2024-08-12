@@ -13,7 +13,7 @@ public:
      *
      * @param root The root of the parse tree.
      */
-    inline Generator(NodeProg root) : m_prog(std::move(root))
+    Generator(NodeProg root) : m_prog(std::move(root))
     {
     }
 
@@ -36,8 +36,8 @@ public:
 
             void operator()(const NodeTermIdent *term_ident) const
             {
-                auto it = std::find_if(gen.m_vars.cbegin(), gen.m_vars.cend(), [&](const Var &var)
-                                       { return var.name == term_ident->ident.value.value(); });
+                const auto it = std::find_if(gen.m_vars.cbegin(), gen.m_vars.cend(), [&](const Var &var)
+                                             { return var.name == term_ident->ident.value.value(); });
                 if (it == gen.m_vars.cend())
                 {
                     std::cerr << "Undeclared Identifier: " << term_ident->ident.value.value() << "\n";
@@ -45,7 +45,7 @@ public:
                 }
                 std::stringstream offset;
                 // Make a copy of the value from the position in stack again on stack (Multiply by 8 for bytes).
-                offset << "QWORD [rsp + " << (gen.m_stack_size - (*it).stack_loc - 1) * 8 << "]";
+                offset << "QWORD [rsp + " << (gen.m_stack_size - it->stack_loc - 1) * 8 << "]";
                 gen.push(offset.str());
             }
 
@@ -211,7 +211,7 @@ public:
                 gen.generate_expression(stmt_if->expr);
                 gen.pop("rax");
 
-                std::string label = gen.create_label();
+                const std::string label = gen.create_label();
 
                 gen.m_output << "    test rax, rax\n";      // check condition in assembly.
                 gen.m_output << "    jz " << label << "\n"; // jump to label if condition is false i.e 0.
@@ -277,7 +277,7 @@ private:
     /// @brief Ending the scope.
     void end_scope()
     {
-        size_t pop_count = m_vars.size() - m_scopes.back();
+        const size_t pop_count = m_vars.size() - m_scopes.back();
         m_output << "    add rsp, " << pop_count * 8 << "\n";
         m_stack_size -= pop_count;
         for (size_t i = 0; i < pop_count; i++)

@@ -84,8 +84,8 @@ struct NodeStmtExit
 /// @brief Represents a 'let' statement in the parse tree.
 struct NodeStmtLet
 {
-    Token ident;    // The identifier token.
-    NodeExpr *expr; // The expression associated with the 'let' statement.
+    Token ident;      // The identifier token.
+    NodeExpr *expr{}; // The expression associated with the 'let' statement.
 };
 
 struct NodeStmt; // Forward declaration of NodeStmt
@@ -126,7 +126,7 @@ public:
      *
      * @param tokens The list of tokens to parse.
      */
-    inline explicit Parser(std::vector<Token> tokens)
+    explicit Parser(std::vector<Token> tokens)
         : m_tokens(std::move(tokens)), m_allocator(1024 * 1024 * 4) // 4 mb
     {
     }
@@ -144,13 +144,13 @@ public:
             auto term = m_allocator.emplace<NodeTerm>(term_int_lit);
             return term;
         }
-        else if (auto ident = try_consume(TokenType::ident))
+        if (auto ident = try_consume(TokenType::ident))
         {
             auto expr_ident = m_allocator.emplace<NodeTermIdent>(ident.value());
             auto term = m_allocator.emplace<NodeTerm>(expr_ident);
             return term;
         }
-        else if (auto open_paren = try_consume(TokenType::open_paren))
+        if (auto open_paren = try_consume(TokenType::open_paren))
         {
             auto expr = parse_expr();
             if (!expr.has_value())
@@ -163,10 +163,7 @@ public:
             auto term = m_allocator.emplace<NodeTerm>(term_paren);
             return term;
         }
-        else
-        {
-            return {};
-        }
+        return {};
     }
 
     /**
@@ -174,7 +171,7 @@ public:
      * @param min_prec Minimum precedence to check for operator precedence climbing for Binary Expressions.
      * @return An optional NodeExpr pointer if an expression is parsed successfully.
      */
-    std::optional<NodeExpr *> parse_expr(int min_prec = 0)
+    std::optional<NodeExpr *> parse_expr(const int min_prec = 0)
     {
         std::optional<NodeTerm *> term = parse_term();
         if (!term.has_value())
@@ -201,8 +198,8 @@ public:
 
             // Get the operator's precedence and associativity, and compute a
             // minimal precedence for the recursive call
-            Token op = consume();
-            int next_min_prec = prec.value() + 1;
+            const auto [type, value] = consume();
+            const int next_min_prec = prec.value() + 1;
             auto expr_rhs = parse_expr(next_min_prec);
             if (!expr_rhs.has_value())
             {
@@ -211,25 +208,25 @@ public:
             }
             auto bin_expr = m_allocator.emplace<NodeBinExpr>();
             auto expr_lhs = m_allocator.emplace<NodeExpr>();
-            if (op.type == TokenType::plus)
+            if (type == TokenType::plus)
             {
                 expr_lhs->var = expr->var;
                 auto add = m_allocator.emplace<NodeBinExprAdd>(expr_lhs, expr_rhs.value());
                 bin_expr->var = add;
             }
-            else if (op.type == TokenType::star)
+            else if (type == TokenType::star)
             {
                 expr_lhs->var = expr->var;
                 auto multi = m_allocator.emplace<NodeBinExprMulti>(expr_lhs, expr_rhs.value());
                 bin_expr->var = multi;
             }
-            else if (op.type == TokenType::minus)
+            else if (type == TokenType::minus)
             {
                 expr_lhs->var = expr->var;
                 auto sub = m_allocator.emplace<NodeBinExprSub>(expr_lhs, expr_rhs.value());
                 bin_expr->var = sub;
             }
-            else if (op.type == TokenType::fslash)
+            else if (type == TokenType::fslash)
             {
                 expr_lhs->var = expr->var;
                 auto div = m_allocator.emplace<NodeBinExprDiv>(expr_lhs, expr_rhs.value());
@@ -278,7 +275,7 @@ public:
 
             auto stmt_exit = m_allocator.emplace<NodeStmtExit>();
 
-            if (auto node_expr = parse_expr())
+            if (const auto node_expr = parse_expr())
             {
                 stmt_exit->expr = node_expr.value();
             }
@@ -296,15 +293,15 @@ public:
             return stmt;
         }
         // Parse 'let' statement
-        else if (peek().has_value() && peek().value().type == TokenType::let &&
-                 peek(1).has_value() && peek(1).value().type == TokenType::ident &&
-                 peek(2).has_value() && peek(2).value().type == TokenType::eq)
+        if (peek().has_value() && peek().value().type == TokenType::let &&
+            peek(1).has_value() && peek(1).value().type == TokenType::ident &&
+            peek(2).has_value() && peek(2).value().type == TokenType::eq)
         {
             consume();
             auto stmt_let = m_allocator.emplace<NodeStmtLet>();
             stmt_let->ident = consume();
             consume();
-            if (auto expr = parse_expr())
+            if (const auto expr = parse_expr())
             {
                 stmt_let->expr = expr.value();
             }
@@ -319,25 +316,22 @@ public:
             return stmt;
         }
         // Parse Scopes.
-        else if (peek().has_value() && peek().value().type == TokenType::open_curly)
+        if (peek().has_value() && peek().value().type == TokenType::open_curly)
         {
-            if (auto scope = parse_scope())
+            if (const auto scope = parse_scope())
             {
                 auto stmt = m_allocator.emplace<NodeStmt>(scope.value());
                 return stmt;
             }
-            else
-            {
-                std::cerr << "Invalid scope" << std::endl;
-                exit(EXIT_FAILURE);
-            }
+            std::cerr << "Invalid scope" << std::endl;
+            exit(EXIT_FAILURE);
         }
         // Parse 'if' statement
-        else if (auto if_ = try_consume(TokenType::if_))
+        if (auto if_ = try_consume(TokenType::if_))
         {
             try_consume(TokenType::open_paren, "Expected `(`");
             auto stmt_if = m_allocator.emplace<NodeStmtIf>();
-            if (auto expr = parse_expr())
+            if (const auto expr = parse_expr())
             {
                 stmt_if->expr = expr.value();
             }
@@ -347,7 +341,7 @@ public:
                 exit(EXIT_FAILURE);
             }
             try_consume(TokenType::close_paren, "Expected `)`");
-            if (auto scope = parse_scope())
+            if (const auto scope = parse_scope())
             {
                 stmt_if->scope = scope.value();
             }
@@ -359,10 +353,7 @@ public:
             auto stmt = m_allocator.emplace<NodeStmt>(stmt_if);
             return stmt;
         }
-        else
-        {
-            return {};
-        }
+        return {};
     }
 
     /**
@@ -395,16 +386,13 @@ private:
      * @param offset The offset from the current position to peek at.
      * @return The token at the current position plus the offset, if valid; otherwise, an empty optional.
      */
-    inline std::optional<Token> peek(size_t offset = 0) const
+    std::optional<Token> peek(const size_t offset = 0) const
     {
         if (m_index + offset >= m_tokens.size())
         {
             return {};
         }
-        else
-        {
-            return m_tokens.at(m_index + offset);
-        }
+        return m_tokens.at(m_index + offset);
     }
 
     /**
@@ -412,7 +400,7 @@ private:
      *
      * @return The consumed token.
      */
-    inline Token consume()
+    Token consume()
     {
         return m_tokens.at(m_index++);
     }
@@ -424,17 +412,14 @@ private:
      * @param err_msg The error message to display if the token type does not match.
      * @return The consumed token.
      */
-    inline Token try_consume(TokenType type, const std::string &err_msg)
+    Token try_consume(const TokenType type, const std::string &err_msg)
     {
         if (peek().has_value() && peek().value().type == type)
         {
             return consume();
         }
-        else
-        {
-            std::cerr << err_msg << std::endl;
-            exit(EXIT_FAILURE);
-        }
+        std::cerr << err_msg << std::endl;
+        exit(EXIT_FAILURE);
     }
 
     /**
@@ -443,16 +428,13 @@ private:
      * @param type The expected token type.
      * @return An optional token if the token type matches.
      */
-    inline std::optional<Token> try_consume(TokenType type)
+    std::optional<Token> try_consume(const TokenType type)
     {
         if (peek().has_value() && peek().value().type == type)
         {
             return consume();
         }
-        else
-        {
-            return {};
-        }
+        return {};
     }
 
     const std::vector<Token> m_tokens;

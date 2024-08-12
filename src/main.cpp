@@ -34,9 +34,10 @@ int main(int argc, char *argv[])
         std::cerr << "No Exit Statement Found." << std::endl;
         return EXIT_FAILURE;
     }
-    Generator codeGenerator(prog.value());
+    
     // Creating asm file
     {
+        Generator codeGenerator(prog.value());
         std::fstream file("out.asm", std::ios::out);
         file << codeGenerator.generate_program();
     }
