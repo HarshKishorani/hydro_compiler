@@ -9,10 +9,12 @@ let x = 1;
     Line 2.
 */
 
-if(1){
-    exit(69);
-} elif(0){
-    exit(68);
-} else{
-    exit(67);
+if (0) {
+    x = 1;
+} elif (0) {
+    x = 2;
+} else {
+    x = 3;
 }
+
+exit(x);

@@ -126,11 +126,16 @@ struct NodeIfPred
     std::variant<NodeIfPredElif *, NodeIfPredElse *> var;
 };
 
-// TODO : use using instead of stuct.
+struct NodeStmtAssign
+{
+    Token ident;      // The identifier token.
+    NodeExpr *expr{}; // The expression associated with the reassignment.
+};
+
 /// @brief Represents a statement in the parse tree.
 struct NodeStmt
 {
-    std::variant<NodeStmtExit *, NodeStmtLet *, NodeScope *, NodeStmtIf *> var; // Variant holding the statement type.
+    std::variant<NodeStmtExit *, NodeStmtLet *, NodeScope *, NodeStmtIf *, NodeStmtAssign *> var; // Variant holding the statement type.
 };
 
 // Program Parse Tree ~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -285,7 +290,7 @@ public:
     }
 
     /// @brief Parses additional predicates after the if statements.
-    /// @return 
+    /// @return
     std::optional<NodeIfPred *> parse_if_pred()
     {
         if (try_consume(TokenType::elif_).has_value())
@@ -340,8 +345,7 @@ public:
      *
      * @return An optional NodeStmt pointer if a statement is parsed successfully.
      */
-    std::optional<NodeStmt *>
-    parse_stmt()
+    std::optional<NodeStmt *> parse_stmt()
     {
         // Parse 'exit' statement
         if (peek().value().type == TokenType::exit && peek(1).has_value() && peek(1).value().type == TokenType::open_paren)
@@ -389,6 +393,25 @@ public:
             try_consume(TokenType::semi, "Expected `;`");
             auto stmt = m_allocator.emplace<NodeStmt>();
             stmt->var = stmt_let;
+            return stmt;
+        }
+        // Parse variable reassignment.
+        if (peek().has_value() && peek().value().type == TokenType::ident && peek(1).has_value() && peek(1).value().type == TokenType::eq)
+        {
+            const auto assign = m_allocator.alloc<NodeStmtAssign>();
+            assign->ident = consume();
+            consume();
+            if (const auto expr = parse_expr())
+            {
+                assign->expr = expr.value();
+            }
+            else
+            {
+                std::cerr << "Expected expression" << std::endl;
+                exit(EXIT_FAILURE);
+            }
+            try_consume(TokenType::semi, "Expected `;`");
+            auto stmt = m_allocator.emplace<NodeStmt>(assign);
             return stmt;
         }
         // Parse Scopes.

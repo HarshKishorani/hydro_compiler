@@ -237,6 +237,20 @@ public:
                 gen.generate_expression(stmt_let->expr);
             }
 
+            void operator()(const NodeStmtAssign *stmt_assign) const
+            {
+                auto it = std::find_if(gen.m_vars.cbegin(), gen.m_vars.cend(), [&](const Var &var)
+                                       { return var.name == stmt_assign->ident.value.value(); });
+                if (it == gen.m_vars.end())
+                {
+                    std::cerr << "Undeclared identifier: " << stmt_assign->ident.value.value() << std::endl;
+                    exit(EXIT_FAILURE);
+                }
+                gen.generate_expression(stmt_assign->expr);
+                gen.pop("rax");
+                gen.m_output << "    mov [rsp + " << (gen.m_stack_size - it->stack_loc - 1) * 8 << "], rax\n";
+            }
+
             void operator()(const NodeScope *stmt_scope)
             {
                 gen.generate_scope(stmt_scope);
