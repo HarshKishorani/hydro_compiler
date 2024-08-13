@@ -3,6 +3,7 @@
 #include <iostream>
 #include <optional>
 #include <vector>
+#include <cassert>
 
 /// @brief Enumeration of token types that the tokenizer can recognize.
 enum class TokenType
@@ -25,6 +26,51 @@ enum class TokenType
     open_curly,  // Represents open curly braces.
     close_curly  // Represents closed curly braces.
 };
+
+/// @brief Token types to string,
+/// @param type
+/// @return
+std::string to_string(const TokenType type)
+{
+    switch (type)
+    {
+    case TokenType::exit:
+        return "`exit`";
+    case TokenType::int_lit:
+        return "int literal";
+    case TokenType::semi:
+        return "`;`";
+    case TokenType::open_paren:
+        return "`(`";
+    case TokenType::close_paren:
+        return "`)`";
+    case TokenType::ident:
+        return "identifier";
+    case TokenType::let:
+        return "`let`";
+    case TokenType::eq:
+        return "`=`";
+    case TokenType::plus:
+        return "`+`";
+    case TokenType::star:
+        return "`*`";
+    case TokenType::minus:
+        return "`-`";
+    case TokenType::fslash:
+        return "`/`";
+    case TokenType::open_curly:
+        return "`{`";
+    case TokenType::close_curly:
+        return "`}`";
+    case TokenType::if_:
+        return "`if`";
+    case TokenType::elif_:
+        return "`elif`";
+    case TokenType::else_:
+        return "`else`";
+    }
+    assert(false);
+}
 
 /// @brief Checks weather the given TokenType is a Binary Operator or not.
 /// @param type The expected token type.
@@ -49,6 +95,7 @@ std::optional<int> checkAndGetBinaryPrecedence(const TokenType type)
 struct Token
 {
     TokenType type;                   // The type of the token.
+    size_t line;                      // Line number of the tolen.
     std::optional<std::string> value; // The value of the token, if applicable.
 };
 
@@ -75,6 +122,7 @@ public:
     {
         std::vector<Token> tokens;
         std::string buff;
+        size_t line_count = 1;
         while (peek().has_value())
         {
             // Check if the current character is alphabetic
@@ -87,32 +135,36 @@ public:
                 }
                 if (buff == "exit")
                 {
-                    tokens.push_back({.type = TokenType::exit});
+                    tokens.push_back({.type = TokenType::exit, .line = line_count});
                     buff.clear();
                 }
                 else if (buff == "let")
                 {
-                    tokens.push_back({.type = TokenType::let});
+                    tokens.push_back({.type = TokenType::let, .line = line_count});
                     buff.clear();
                 }
                 else if (buff == "if")
                 {
-                    tokens.push_back({.type = TokenType::if_});
+                    tokens.push_back({.type = TokenType::if_, .line = line_count});
                     buff.clear();
                 }
                 else if (buff == "else")
                 {
-                    tokens.push_back({.type = TokenType::else_});
-                    buff.clear();   
+                    tokens.push_back({.type = TokenType::else_, .line = line_count});
+                    buff.clear();
                 }
                 else if (buff == "elif")
                 {
-                    tokens.push_back({.type = TokenType::elif_});
+                    tokens.push_back({.type = TokenType::elif_, .line = line_count});
                     buff.clear();
                 }
                 else
                 {
-                    tokens.push_back({.type = TokenType::ident, .value = buff});
+                    tokens.push_back({
+                        .type = TokenType::ident,
+                        .line = line_count,
+                        .value = buff,
+                    });
                     buff.clear();
                 }
             }
@@ -124,7 +176,7 @@ public:
                 {
                     buff.push_back(consume());
                 }
-                tokens.push_back({.type = TokenType::int_lit, .value = buff});
+                tokens.push_back({.type = TokenType::int_lit, .line = line_count, .value = buff});
                 buff.clear();
             }
             // Check comments
@@ -136,6 +188,7 @@ public:
                 {
                     consume();
                 }
+                line_count++;
             }
             else if (peek().value() == '/' && peek(1).has_value() && peek(1).value() == '*')
             {
@@ -146,6 +199,10 @@ public:
                     if (peek().value() == '*' && peek(1).has_value() && peek(1).value() == '/')
                     {
                         break;
+                    }
+                    if (peek().value() == '\n')
+                    {
+                        line_count++;
                     }
                     consume();
                 }
@@ -158,52 +215,58 @@ public:
             else if (peek().value() == '(')
             {
                 consume();
-                tokens.push_back({.type = TokenType::open_paren});
+                tokens.push_back({.type = TokenType::open_paren, .line = line_count});
             }
             else if (peek().value() == ')')
             {
                 consume();
-                tokens.push_back({.type = TokenType::close_paren});
+                tokens.push_back({.type = TokenType::close_paren, .line = line_count});
             }
             else if (peek().value() == ';')
             {
                 consume();
-                tokens.push_back({.type = TokenType::semi});
+                tokens.push_back({.type = TokenType::semi, .line = line_count});
             }
             else if (peek().value() == '=')
             {
                 consume();
-                tokens.push_back({.type = TokenType::eq});
+                tokens.push_back({.type = TokenType::eq, .line = line_count});
             }
             else if (peek().value() == '+')
             {
                 consume();
-                tokens.push_back({.type = TokenType::plus});
+                tokens.push_back({.type = TokenType::plus, .line = line_count});
             }
             else if (peek().value() == '*')
             {
                 consume();
-                tokens.push_back({.type = TokenType::star});
+                tokens.push_back({.type = TokenType::star, .line = line_count});
             }
             else if (peek().value() == '-')
             {
                 consume();
-                tokens.push_back({.type = TokenType::minus});
+                tokens.push_back({.type = TokenType::minus, .line = line_count});
             }
             else if (peek().value() == '/')
             {
                 consume();
-                tokens.push_back({.type = TokenType::fslash});
+                tokens.push_back({.type = TokenType::fslash, .line = line_count});
             }
             else if (peek().value() == '{')
             {
                 consume();
-                tokens.push_back({.type = TokenType::open_curly});
+                tokens.push_back({.type = TokenType::open_curly, .line = line_count});
             }
             else if (peek().value() == '}')
             {
                 consume();
-                tokens.push_back({.type = TokenType::close_curly});
+                tokens.push_back({.type = TokenType::close_curly, .line = line_count});
+            }
+            // Line Count
+            else if (peek().value() == '\n')
+            {
+                consume();
+                line_count++;
             }
             // Skip whitespace characters
             else if (std::isspace(peek().value()))
