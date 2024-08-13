@@ -11,7 +11,7 @@ let x = 1;
 
 if (0) {
     x = 1;
-} elif (0) {
+} elif (1) {
     x = 2;
 } else {
     x = 3;
