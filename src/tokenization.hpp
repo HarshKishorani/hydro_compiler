@@ -10,6 +10,8 @@ enum class TokenType
     exit,        // Represents the 'exit' keyword.
     int_lit,     // Represents an integer literal.
     if_,         // Represents the 'if' keyword.
+    else_,       // Represents the 'else' keyword.
+    elif_,       // Represents the 'else if' keyword.
     semi,        // Represents a semicolon.
     open_paren,  // Represents an opening parenthesis.
     close_paren, // Represents a closing parenthesis.
@@ -96,6 +98,16 @@ public:
                 else if (buff == "if")
                 {
                     tokens.push_back({.type = TokenType::if_});
+                    buff.clear();
+                }
+                else if (buff == "else")
+                {
+                    tokens.push_back({.type = TokenType::else_});
+                    buff.clear();   
+                }
+                else if (buff == "elif")
+                {
+                    tokens.push_back({.type = TokenType::elif_});
                     buff.clear();
                 }
                 else

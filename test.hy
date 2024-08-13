@@ -9,7 +9,10 @@ let x = 1;
     Line 2.
 */
 
-if(x){
+if(1){
     exit(69);
+} elif(0){
+    exit(68);
+} else{
+    exit(67);
 }
-exit(x);

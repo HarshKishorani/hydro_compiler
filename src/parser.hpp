@@ -90,6 +90,8 @@ struct NodeStmtLet
 
 struct NodeStmt; // Forward declaration of NodeStmt
 
+struct NodeIfPred; // Forward declaration of NodeIfPred
+
 /// @brief Represents a 'scope' in the parse tree. Scope contains a list of statements inside.
 struct NodeScope
 {
@@ -101,8 +103,30 @@ struct NodeStmtIf
 {
     NodeExpr *expr;   // Condition expression of the 'if' statement.
     NodeScope *scope; // Scope of statements executed if the condition is true.
+    std::optional<NodeIfPred *> pred;
 };
 
+/// @brief Represents a Else If Predicate in the parse tree.
+struct NodeIfPredElif
+{
+    NodeExpr *expr{};
+    NodeScope *scope{};
+    std::optional<NodeIfPred *> pred;
+};
+
+/// @brief Represents a Else Predicate in the parse tree.
+struct NodeIfPredElse
+{
+    NodeScope *scope;
+};
+
+/// @brief Represents a If Predicate in the parse tree.
+struct NodeIfPred
+{
+    std::variant<NodeIfPredElif *, NodeIfPredElse *> var;
+};
+
+// TODO : use using instead of stuct.
 /// @brief Represents a statement in the parse tree.
 struct NodeStmt
 {
@@ -260,12 +284,64 @@ public:
         return scope;
     }
 
+    /// @brief Parses additional predicates after the if statements.
+    /// @return 
+    std::optional<NodeIfPred *> parse_if_pred()
+    {
+        if (try_consume(TokenType::elif_).has_value())
+        {
+            try_consume(TokenType::open_paren, "Exprected a '('.");
+            auto elif_pred = m_allocator.alloc<NodeIfPredElif>();
+            if (const auto expr = parse_expr())
+            {
+                elif_pred->expr = expr.value();
+            }
+            else
+            {
+                std::cerr << "Exprected an expression.";
+                exit(EXIT_FAILURE);
+            }
+            try_consume(TokenType::close_paren, "Exprected a ')'.");
+            if (const auto scope = parse_scope())
+            {
+                elif_pred->scope = scope.value();
+            }
+            else
+            {
+                std::cerr << "Exprected a scope.";
+                exit(EXIT_FAILURE);
+            }
+            elif_pred->pred = parse_if_pred();
+
+            auto if_pred = m_allocator.emplace<NodeIfPred>(elif_pred);
+            return if_pred;
+        }
+        if (try_consume(TokenType::else_).has_value())
+        {
+            auto else_pred = m_allocator.alloc<NodeIfPredElse>();
+
+            if (const auto scope = parse_scope())
+            {
+                else_pred->scope = scope.value();
+            }
+            else
+            {
+                std::cerr << "Exprected a scope.";
+                exit(EXIT_FAILURE);
+            }
+            auto if_pred = m_allocator.emplace<NodeIfPred>(else_pred);
+            return if_pred;
+        }
+        return {};
+    }
+
     /**
      * @brief Parses a statement from the tokens.
      *
      * @return An optional NodeStmt pointer if a statement is parsed successfully.
      */
-    std::optional<NodeStmt *> parse_stmt()
+    std::optional<NodeStmt *>
+    parse_stmt()
     {
         // Parse 'exit' statement
         if (peek().value().type == TokenType::exit && peek(1).has_value() && peek(1).value().type == TokenType::open_paren)
@@ -350,6 +426,7 @@ public:
                 std::cerr << "Invalid scope" << std::endl;
                 exit(EXIT_FAILURE);
             }
+            stmt_if->pred = parse_if_pred();
             auto stmt = m_allocator.emplace<NodeStmt>(stmt_if);
             return stmt;
         }

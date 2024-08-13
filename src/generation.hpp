@@ -169,6 +169,42 @@ public:
         end_scope();
     }
 
+    /// @brief Generates code for If predicates after the if statement.
+    /// @param pred The Predicate node to generate code for.
+    /// @param end_label
+    void generate_if_pred(const NodeIfPred *pred, const std::string &end_label)
+    {
+        struct PredVisitor
+        {
+            Generator &gen;
+            const std::string &end_label;
+
+            void operator()(const NodeIfPredElif *elif) const
+            {
+                gen.generate_expression(elif->expr);
+                gen.pop("rax");
+                const std::string label = gen.create_label();
+                gen.m_output << "    test rax, rax\n";
+                gen.m_output << "    jz " << label << "\n";
+                gen.generate_scope(elif->scope);
+                gen.m_output << "    jmp " << end_label << "\n";
+                if (elif->pred.has_value())
+                {
+                    gen.m_output << label << ":\n";
+                    gen.generate_if_pred(elif->pred.value(), end_label);
+                }
+            }
+
+            void operator()(const NodeIfPredElse *else_) const
+            {
+                gen.generate_scope(else_->scope);
+            }
+        };
+
+        PredVisitor visitor{.gen = *this, .end_label = end_label};
+        std::visit(visitor, pred->var);
+    }
+
     /**
      * @brief Generates assembly code for a statement node.
      *
@@ -217,6 +253,12 @@ public:
                 gen.m_output << "    jz " << label << "\n"; // jump to label if condition is false i.e 0.
                 gen.generate_scope(stmt_if->scope);
                 gen.m_output << label << ":\n";
+                if (stmt_if->pred.has_value())
+                {
+                    const std::string end_label = gen.create_label();
+                    gen.generate_if_pred(stmt_if->pred.value(), end_label);
+                    gen.m_output << end_label << ":\n";
+                }
             }
         };
 
